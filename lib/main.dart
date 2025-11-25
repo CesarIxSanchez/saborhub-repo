@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:saborhub/providers/favorites_provider.dart';
 import 'package:saborhub/screens/main_screen.dart';
+import 'package:saborhub/providers/recipes_provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => FavoritesProvider(),
+    MultiProvider( // fovoritos y guardar
+      providers: [
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => RecipesProvider()), 
+      ],
       child: const SaborHubApp(),
     ),
   );

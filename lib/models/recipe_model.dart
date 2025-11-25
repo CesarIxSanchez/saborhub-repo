@@ -1,4 +1,3 @@
-// Molde para cada receta
 class Recipe {
   final String id;
   final String title;
@@ -21,4 +20,34 @@ class Recipe {
     required this.videoUrl,
     required this.videoAuthor,
   });
+
+  //  Convertir a JSON para poder guardar
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'imageUrl': imageUrl,
+      'difficulty': difficulty,
+      'time': time,
+      'ingredients': ingredients,
+      'steps': steps,
+      'videoUrl': videoUrl,
+      'videoAuthor': videoAuthor,
+    };
+  }
+
+  // Crear desde el JSON 
+  factory Recipe.fromMap(Map<String, dynamic> map) {
+    return Recipe(
+      id: map['id'],
+      title: map['title'],
+      imageUrl: map['imageUrl'],
+      difficulty: map['difficulty'],
+      time: map['time'],
+      ingredients: List<String>.from(map['ingredients']),
+      steps: List<String>.from(map['steps']),
+      videoUrl: map['videoUrl'] ?? '',
+      videoAuthor: map['videoAuthor'] ?? '',
+    );
+  }
 }

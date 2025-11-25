@@ -1,18 +1,30 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:saborhub/models/recipe_model.dart';
 import 'package:saborhub/providers/favorites_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class RecipeDetailScreen extends StatelessWidget {
+class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
 
   const RecipeDetailScreen({super.key, required this.recipe});
 
+  @override
+  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
+}
+
+class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+  // Marcar ingredientes
+  final Set<String> _checkedIngredients = {};
+  
+  // Pasos completados
+  final Set<int> _completedSteps = {};
+
   Future<void> _launchURL(String url) async {
     final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri)) {
-      print('No se pudo abrir $url');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      debugPrint('No se pudo abrir $url');
     }
   }
 
@@ -22,22 +34,20 @@ class RecipeDetailScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
-        title: Text(recipe.title),
+        title: Text(widget.recipe.title),
         actions: [
           Consumer<FavoritesProvider>(
             builder: (context, favoritesProvider, child) {
-              final bool isFavorite = favoritesProvider.isFavorite(recipe);
+              final bool isFavorite = favoritesProvider.isFavorite(widget.recipe);
               return IconButton(
                 icon: Icon(
                   isFavorite ? Icons.favorite : Icons.favorite_border,
                   color: isFavorite ? Colors.red : Colors.white,
                 ),
                 onPressed: () {
-                  favoritesProvider.toggleFavorite(recipe);
+                  favoritesProvider.toggleFavorite(widget.recipe);
                 },
               );
             },
@@ -48,95 +58,144 @@ class RecipeDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Image.network(
-              recipe.imageUrl,
+            // Imagen
+            SizedBox(
               height: 250,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  height: 250,
-                  color: Colors.grey[200],
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 250,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
-                );
-              },
+              child: widget.recipe.imageUrl.startsWith('http')
+                  ? Image.network(
+                      widget.recipe.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (ctx, err, stack) => Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                      ),
+                    )
+                  : Image.file(
+                      File(widget.recipe.imageUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (ctx, err, stack) => Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                      ),
+                    ),
             ),
             const SizedBox(height: 10),
 
+            // Chips
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  InfoChip(icon: Icons.thermostat, text: recipe.difficulty),
-                  InfoChip(icon: Icons.timer, text: recipe.time),
+                  InfoChip(icon: Icons.thermostat, text: widget.recipe.difficulty),
+                  InfoChip(icon: Icons.timer, text: widget.recipe.time),
                 ],
               ),
             ),
             const SizedBox(height: 10),
 
+            // Ingredientes
             const SectionTitle(title: 'Ingredientes'),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: recipe.ingredients.map((ingredient) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Text('• $ingredient'),
+                children: widget.recipe.ingredients.map((ingredient) {
+                  final isChecked = _checkedIngredients.contains(ingredient);
+                  return CheckboxListTile(
+                    title: Text(
+                      ingredient,
+                      style: TextStyle(
+                        decoration: isChecked ? TextDecoration.lineThrough : null,
+                        color: isChecked ? Colors.grey : Colors.black87,
+                      ),
+                    ),
+                    value: isChecked,
+                    activeColor: Colors.green,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        if (value == true) {
+                          _checkedIngredients.add(ingredient);
+                        } else {
+                          _checkedIngredients.remove(ingredient);
+                        }
+                      });
+                    },
                   );
                 }).toList(),
               ),
             ),
             const SizedBox(height: 20),
 
+            // Pasos
             const SectionTitle(title: 'Pasos'),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: recipe.steps.length,
+              itemCount: widget.recipe.steps.length,
               itemBuilder: (context, index) {
+                // Paso terminado
+                final isStepDone = _completedSteps.contains(index);
+
                 return ListTile(
+                  // Marcar/desmarcar al tocar
+                  onTap: () {
+                    setState(() {
+                      if (isStepDone) {
+                        _completedSteps.remove(index);
+                      } else {
+                        _completedSteps.add(index);
+                      }
+                    });
+                  },
                   leading: CircleAvatar(
-                    backgroundColor: Colors.green,
-                    child: Text(
-                      '${index + 1}',
-                      style: const TextStyle(color: Colors.white),
+                    // gris = listo
+                    backgroundColor: isStepDone ? Colors.grey : Colors.green,
+                    foregroundColor: Colors.white,
+                    child: isStepDone
+                        ? const Icon(Icons.check, size: 20) // Palomita si está listo
+                        : Text('${index + 1}'), // Número si falta
+                  ),
+                  title: Text(
+                    widget.recipe.steps[index],
+                    style: TextStyle(
+                      // Tachar el texto si está listo
+                      decoration: isStepDone ? TextDecoration.lineThrough : null,
+                      color: isStepDone ? Colors.grey : Colors.black87,
                     ),
                   ),
-                  title: Text(recipe.steps[index]),
                 );
               },
             ),
             const SizedBox(height: 20),
 
-            const SectionTitle(title: 'Video de Preparación'),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.play_circle_outline),
-                    label: const Text('Ver en YouTube'),
-                    onPressed: () {
-                      _launchURL(recipe.videoUrl);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Créditos del video: ${recipe.videoAuthor}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+            // Video
+            if (widget.recipe.videoUrl.isNotEmpty) ...[
+              const SectionTitle(title: 'Video de Preparación'),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.play_circle_outline),
+                      label: const Text('Ver en YouTube'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => _launchURL(widget.recipe.videoUrl),
+                    ),
+                    const SizedBox(height: 10),
+                    if (widget.recipe.videoAuthor.isNotEmpty)
+                      Text(
+                        'Créditos del video: ${widget.recipe.videoAuthor}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
               ),
-            ),
+            ],
+            const SizedBox(height: 30),
           ],
         ),
       ),
@@ -151,14 +210,10 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          color: Colors.green,
-        ),
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green),
       ),
     );
   }
@@ -175,6 +230,7 @@ class InfoChip extends StatelessWidget {
       avatar: Icon(icon, color: Colors.green),
       label: Text(text),
       backgroundColor: Colors.green.withOpacity(0.1),
+      side: BorderSide.none,
     );
   }
 }
